@@ -14,8 +14,12 @@ public partial class CameraRenderer
     CullingResults cullingResults;
 
     static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
+    static ShaderTagId litShaderTagId = new ShaderTagId("CustomLit");
 
-    public void Render(ScriptableRenderContext context,Camera camera)
+    Lighting lighting = new Lighting();
+
+    public void Render(ScriptableRenderContext context,Camera camera,
+        bool useDynamicBatching, bool useGPUInstancing)
     {
         this.context = context;
         this.camera = camera;
@@ -31,7 +35,9 @@ public partial class CameraRenderer
 
         SetUp();
 
-        DrawVisibleGeometry();
+        lighting.SetUp(context, cullingResults);
+
+        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
 
         DrawUnsupportedShaders();
 
@@ -90,11 +96,19 @@ public partial class CameraRenderer
     /// <summary>
     /// 渲染可见的物体
     /// </summary>
-    private void DrawVisibleGeometry()
+    /// <param name="useDynamicBatching">使用动态怕批处理</param>
+    /// <param name="useGPUInstancing">使用GUP实例化</param>
+    private void DrawVisibleGeometry(bool useDynamicBatching,bool useGPUInstancing)
     {
         //绘制 不透明物体
         var sortingSettings = new SortingSettings(camera) { criteria = SortingCriteria.CommonOpaque };
-        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings);
+        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings)
+        {
+            enableDynamicBatching = useDynamicBatching,
+            enableInstancing = useGPUInstancing
+        };
+        drawingSettings.SetShaderPassName(1, litShaderTagId);
+
         var filteringSetting = new FilteringSettings(RenderQueueRange.opaque);
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSetting);
 
