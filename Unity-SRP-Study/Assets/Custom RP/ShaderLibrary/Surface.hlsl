@@ -4,6 +4,7 @@
 struct Surface
 {
     float3 normal;
+    float viewDirection;
     float3 color;
     float alpha;
     float metallic;
