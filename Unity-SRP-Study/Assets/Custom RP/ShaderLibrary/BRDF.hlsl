@@ -3,9 +3,9 @@
 
 struct BRDF
 {
-	float3 diffuse;
-	float3 specular;
-	float roughness;
+	float3 diffuse;//扩散(漫反射)
+	float3 specular;//镜面
+	float roughness;//粗糙度
 };
 
 
@@ -58,15 +58,21 @@ BRDF GetBRDF(Surface surface,bool applyAlphaToDiffuse = false)
 	return brdf;
 }
 
+//平方
 float Square(float v)
 {
 	return v*v;
 }
 
+//高光强度 计算公式
 float SpecularStrength(Surface surface,BRDF brdf,Light light)
 {
-	float3 h = SafeNormalize(light.direction + surface.viewDirection);//半程向量（光线方向 点乘 视线方向）
+	//[公式] r2 / d2*max(0.1,(dot(l,h)2))*n
+	//[公式] d = dot(n,h)2 * (r2-1)+1.0001
+	//[公式] n = 4r + 2
 
+	float3 h = SafeNormalize(light.direction + surface.viewDirection);//半程向量（光线方向 点乘 视线方向）
+	//saturate 规范在0~1之间
 	float nh2 = Square(saturate(dot(surface.normal,h)));
 	float lh2 = Square(saturate(dot(light.direction,h)));
 	float r2 = Square(brdf.roughness);
@@ -74,6 +80,8 @@ float SpecularStrength(Surface surface,BRDF brdf,Light light)
 	float normalization = brdf.roughness * 4.0+2.0;
 	return r2/(d2*max(0.1,lh2)*normalization);
 }
+
+//高光加漫反射
 
 float DirectBRDF(Surface surface,BRDF brdf,Light light)
 {

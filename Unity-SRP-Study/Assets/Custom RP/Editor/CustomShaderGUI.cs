@@ -4,6 +4,8 @@ using UnityEngine.Rendering;
 
 public class CustomShaderGUI:ShaderGUI
 {
+    bool showPressets;
+
     MaterialEditor editor;
     Object[] materials;
     MaterialProperty[] properties;
@@ -15,11 +17,32 @@ public class CustomShaderGUI:ShaderGUI
         editor = materialEditor;
         materials = materialEditor.targets;
         this.properties = properties;
+
+        EditorGUILayout.Space();
+        showPressets = EditorGUILayout.Foldout(showPressets,"Presets",true);
+        if (showPressets)
+        {
+            OpaquePreset();
+            ClipPreset();
+            FadePreset();
+            TransparentPreset();
+        }
     }
 
-    void SetProperty(string name,float value) 
+    bool HasProperty(string name) => FindProperty(name, properties, false) != null;
+    bool HasPremultiplyAlpha => HasProperty("_PremulAlpha");
+
+    bool SetProperty(string name,float value) 
     {
-        FindProperty(name, properties).floatValue = value;
+        MaterialProperty property = FindProperty(name, properties, false);
+        if(property != null)
+        {
+            property.floatValue = value;
+            return true;
+        }
+        return false;
+
+        //FindProperty(name, properties).floatValue = value;
     }
 
     void SetKeyword(string keyword,bool enabled)
@@ -42,8 +65,10 @@ public class CustomShaderGUI:ShaderGUI
 
     void SetProperty(string name,string keyword,bool value) 
     {
-        SetProperty(name, value ? 1f : 0f);
-        SetKeyword(keyword, value);
+       if(SetProperty(name, value ? 1f : 0f)) 
+        {
+            SetKeyword(keyword, value);
+        }
     }
 
     bool Clipping 
@@ -116,6 +141,32 @@ public class CustomShaderGUI:ShaderGUI
             DstBlend = BlendMode.Zero;
             ZWrite = true;
             RenderQueue = RenderQueue.AlphaTest;
+        }
+    }
+
+    void FadePreset()
+    {
+        if (PressButton("Fade"))
+        {
+            Clipping = true;
+            PremultiplyAlpha = false;
+            SrcBlend = BlendMode.SrcAlpha;
+            DstBlend = BlendMode.OneMinusSrcAlpha;
+            ZWrite = false;
+            RenderQueue = RenderQueue.Transparent;
+        }
+    }
+
+    void TransparentPreset()
+    {
+        if (HasPremultiplyAlpha && PressButton("Transparent"))
+        {
+            Clipping = false;
+            PremultiplyAlpha = true;
+            SrcBlend = BlendMode.One;
+            DstBlend = BlendMode.OneMinusSrcAlpha;
+            ZWrite = false;
+            RenderQueue = RenderQueue.Transparent;
         }
     }
 

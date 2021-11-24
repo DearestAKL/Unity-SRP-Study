@@ -13,8 +13,8 @@ CBUFFER_END
 
 struct Light
 {
-	float3 color;
-	float3 direction;
+	float3 color;//颜色
+	float3 direction;//方向
 };
 
 int GetDirectionalLightCount()
