@@ -3,6 +3,7 @@ using UnityEngine.Rendering;
 
 public partial class CameraRenderer
 {
+    //定义自定义渲染管道使用的状态和绘图命令
     ScriptableRenderContext context;
 
     Camera camera;
@@ -10,7 +11,7 @@ public partial class CameraRenderer
     const string bufferName = "Render Camera";
     //命令缓冲区
     CommandBuffer buffer = new CommandBuffer { name = bufferName };
-
+    //剔除结果
     CullingResults cullingResults;
 
     static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
@@ -18,30 +19,54 @@ public partial class CameraRenderer
 
     Lighting lighting = new Lighting();
 
+    /// <summary>
+    /// 渲染
+    /// </summary>
+    /// <param name="context">自定义渲染命令</param>
+    /// <param name="camera">相机</param>
+    /// <param name="useDynamicBatching">开启动态合批</param>
+    /// <param name="useGPUInstancing">开启GPUInstancing</param>
+    /// <param name="shadowSettings">阴影设置</param>
     public void Render(ScriptableRenderContext context,Camera camera,
-        bool useDynamicBatching, bool useGPUInstancing)
+        bool useDynamicBatching, bool useGPUInstancing, ShadowSettings shadowSettings)
     {
         this.context = context;
         this.camera = camera;
 
+        //编辑器准备
         PrepareBuffer();
         PrepareForSceneWindow();
 
-        if (!Cull())
+        if (!Cull(shadowSettings.maxDistance))
         {
+            // 没有获取到剔除参数，则直接返回
             return;
         }
 
+        //当我们在阴影图集之前设置常规摄影机时，最终会在渲染常规几何图形之前切换到阴影图集，
+        //这不是我们想要的。我们应该在调用CameraRenderer.Render中的CameraRenderer.Setup之前渲染阴影，
+        //这样常规渲染不会受到影响。
+        //SetUp();
 
+        // 添加采样开始命令
+        buffer.BeginSample(SampleName);
+        // 执行缓冲区，这里主要是清理缓冲区
+        ExecuteBuffer();
+        // 将灯光的属性应用于上下文
+        lighting.SetUp(context, cullingResults, shadowSettings);
+        // 添加采样结束命令
+        buffer.EndSample(SampleName);
+
+        // 将摄像机的属性应用于上下文
         SetUp();
-
-        lighting.SetUp(context, cullingResults);
 
         DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
 
         DrawUnsupportedShaders();
 
         DrawGizmos();
+
+        lighting.Cleanup();
 
         //仅仅这样并没有使天空盒渲染出来。
         //这是因为我们向上下文发出的命令都是缓冲的。
@@ -121,10 +146,19 @@ public partial class CameraRenderer
         filteringSetting.renderQueueRange = RenderQueueRange.transparent;
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSetting);
     }
-    bool Cull() 
+
+    /// <summary>
+    /// 剔除
+    /// </summary>
+    /// <param name="maxShadowDistance">最大阴影距离</param>
+    /// <returns></returns>
+    bool Cull(float maxShadowDistance) 
     {
+        // 获取剔除参数
         if(camera.TryGetCullingParameters(out ScriptableCullingParameters p)) 
         {
+            //最大阴影距离和摄像机远剪切平面中的最小值
+            p.shadowDistance = Mathf.Min(maxShadowDistance, camera.farClipPlane);
             cullingResults = context.Cull(ref p);
             return true;
         }

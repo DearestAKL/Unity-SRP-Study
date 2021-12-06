@@ -12,6 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1ef014a5218846458967813f986d9b3, type: 3}
   m_Name: Custom RP
   m_EditorClassIdentifier: 
-  useDynamicBatching: 0
+  useDynamicBatching: 1
   useGPUInstancing: 1
   useSRPBacher: 1
+  shadows:
+    maxDistance: 100
+    distanceFade: 0.1
+    directional:
+      atlasSize: 512
+      cascadeCount: 4
+      cascadeRatio1: 0.1
+      cascadeRatio2: 0.25
+      cascadeRatio3: 0.5
+      cascadeFade: 0.1

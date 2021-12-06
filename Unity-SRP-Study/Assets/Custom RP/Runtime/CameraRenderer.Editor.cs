@@ -61,7 +61,7 @@ public partial class CameraRenderer
     }
 
     /// <summary>
-    /// 为Scene窗口装备
+    /// 为编辑器 准备Scene窗口
     /// 需要在裁剪前完成
     /// </summary>
     partial void PrepareForSceneWindow()
@@ -72,6 +72,9 @@ public partial class CameraRenderer
         }
     }
 
+    /// <summary>
+    /// 为编辑器 准备缓冲区
+    /// </summary>
     partial void PrepareBuffer() 
     {
         Profiler.BeginSample("Editor Only");

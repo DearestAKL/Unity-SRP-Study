@@ -7,10 +7,13 @@ public class CustomRenderPipeline : RenderPipeline
 
     bool useDynamicBatching, useGPUInstancing;
 
-    public CustomRenderPipeline(bool useDynamicBatching, bool useGPUInstancing,bool useSRPBacher)
+    ShadowSettings shadowSettings;
+
+    public CustomRenderPipeline(bool useDynamicBatching, bool useGPUInstancing,bool useSRPBacher, ShadowSettings shadowSettings)
     {
         this.useDynamicBatching = useDynamicBatching;
         this.useGPUInstancing = useGPUInstancing;
+        this.shadowSettings = shadowSettings;
         // 启用SRP批处理程序
         GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBacher;
         GraphicsSettings.lightsUseLinearIntensity = true;
@@ -19,7 +22,7 @@ public class CustomRenderPipeline : RenderPipeline
     {
         foreach (Camera camera in cameras)
         {
-            renderer.Render(context, camera, useDynamicBatching, useGPUInstancing);
+            renderer.Render(context, camera, useDynamicBatching, useGPUInstancing, shadowSettings);
         }
     }
 }

@@ -4,7 +4,7 @@
 //入射光
 float3 IncomingLight(Surface surface,Light light)
 {
-	return saturate(dot(surface.normal,light.direction))*light.color;
+	return saturate(dot(surface.normal,light.direction)*light.attenuation)*light.color;
 }
 
 //入射光 * BRDF(双向反射)
@@ -14,12 +14,14 @@ float3 GetLighting(Surface surface,BRDF brdf,Light light)
 }
 
 //多光源叠加
-float3 GetLighting(Surface surface,BRDF brdf)
+float3 GetLighting(Surface surfaceWS,BRDF brdf)
 {
+	ShadowData shadowData = GetShadowData(surfaceWS);
 	float3 color = 0.0;
 	for(int i =0;i<GetDirectionalLightCount();i++)
 	{
-		color += GetLighting(surface,brdf,GetDirectionalLight(i));
+		Light light = GetDirectionalLight(i,surfaceWS,shadowData);
+		color += GetLighting(surfaceWS,brdf,light);
 	}
 	return color;
 	//return GetLighting(surface,GetDirectionalLight());
