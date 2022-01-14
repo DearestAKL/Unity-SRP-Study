@@ -20,7 +20,20 @@ public class Shadows
 
     struct ShadowedDirectionalLight
     {
+        /// <summary>
+        /// 可见光下标
+        /// </summary>
         public int visibleLightIndex;
+
+        /// <summary>
+        /// 斜度比例偏差值
+        /// </summary>
+        public float slopeScaleBias;
+
+        /// <summary>
+        /// 阴影视锥体近裁剪平面偏移
+        /// </summary>
+        public float nearPlaneOffset;
     }
 
     ShadowedDirectionalLight[] ShadowedDirectionalLights = new ShadowedDirectionalLight[maxShadowedDirectionalLightCount];
@@ -33,6 +46,7 @@ public class Shadows
     static int cascadeDataId= Shader.PropertyToID("_CascadeData");
     //static int shadowDistanceId = Shader.PropertyToID("_ShadowDistance");
     static int shadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade");
+    static int shadowAtlasSizeId = Shader.PropertyToID("_ShadowAtlasSize");
 
     
 
@@ -62,6 +76,40 @@ public class Shadows
             RenderDirectionalShadows();
         }
     }
+
+    /// <summary>
+    /// PCF滤波模式
+    /// </summary>
+    static string[] directionalFilterKeywords =
+    {
+        "_DIRECTIONAL_PCF3",
+        "_DIRECTIONAL_PCF5",
+        "_DIRECTIONAL_PCF7",
+    };
+
+    /// <summary>
+    /// 级联混合模式
+    /// </summary>
+    static string[] cascadeBlendKeywords = {"_CASCADE_BLEND_SOFT","_CASCADE_BLEND_DITHER" };
+
+    /// <summary>
+    /// 设置关键字
+    /// </summary>
+    void SetKeywords(string[] keywords,int enabledIndex)
+    {
+        for(int i=0;i < keywords.Length; i++)
+        {
+            if(i == enabledIndex) 
+            {
+                buffer.EnableShaderKeyword(keywords[i]);
+            }
+            else
+            {
+                buffer.DisableShaderKeyword(keywords[i]);
+            }
+        }
+    }
+
 
     /// <summary>
     /// 通过将阴影投射对象绘制到纹理来完成创建阴影贴图。
@@ -117,6 +165,13 @@ public class Shadows
 
         buffer.SetGlobalVectorArray(cascadeDataId, cascadeData);
 
+        // 设置关键字
+        SetKeywords(directionalFilterKeywords,(int)settings.directional.filter-1);
+        SetKeywords(cascadeBlendKeywords,(int)settings.directional.cascadeBlend-1);
+
+        // 传递图集大小和纹素大小
+        buffer.SetGlobalVector(shadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize));
+
         buffer.EndSample(bufferName);
         ExecuteBuffer();
     }
@@ -170,17 +225,21 @@ public class Shadows
         int tileOffset = index * cascadeCount;
         Vector3 ratios = settings.directional.CascadeRatios;
 
+        float cullingFactor = Mathf.Max(0f, 0.8f - settings.directional.cascadeFade);
         for (int i = 0; i < cascadeCount; i++)
         {
             cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
                 light.visibleLightIndex,//可见光指数
                 i, cascadeCount, ratios, //控制阴影级联
                 tileSize,//纹理尺寸
-                0f,//靠近平面的阴影
+                light.nearPlaneOffset,//靠近平面的阴影
                 out Matrix4x4 viewMatrix,//视图矩阵
                 out Matrix4x4 projectionMatrix,//投影矩阵
                 out ShadowSplitData splitData
                 );
+
+            //剔除偏差
+            splitData.shadowCascadeBlendCullingFactor = cullingFactor;
 
             shadowSettings.splitData = splitData;
 
@@ -197,22 +256,35 @@ public class Shadows
 
             buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
 
-            //第一个参数是全局深度偏差,第二个是坡度比例偏差
-            //buffer.SetGlobalDepthBias(0, 3f);
-
+            // 第一个参数是全局深度偏差,第二个是斜度比例偏差
+            // 设置斜度比例偏差值
+            buffer.SetGlobalDepthBias(0, light.slopeScaleBias);
+            // 绘制阴影
             ExecuteBuffer();
             context.DrawShadows(ref shadowSettings);
-
-            //buffer.SetGlobalDepthBias(0f, 0f);
+            buffer.SetGlobalDepthBias(0f, 0f);
         }
     }
 
+    /// <summary>
+    /// 设置级联数据
+    /// </summary>
+    /// <param name="index"></param>
+    /// <param name="cullingSphere"></param>
+    /// <param name="tileSize"></param>
     void SetCasacdeData(int index,Vector4 cullingSphere,float tileSize)
     {
+        // 包围球直径除以阴影图块尺寸=纹素大小
         float texelSize = 2f * cullingSphere.w / tileSize;
+
+        float filterSize = texelSize * ((float)settings.directional.filter + 1f);
+        cullingSphere.w -= filterSize;
+
+        // 得到半径的平方值
         cullingSphere.w *= cullingSphere.w;
         cascadeCullingSpheres[index] = cullingSphere;
-        cascadeData[index] = new Vector4(1f / cullingSphere.w, texelSize * 1.4142136f);
+        // 纹素是正方形，最坏的情况不得不沿正方形对角线偏移，所以需要乘上根号2
+        cascadeData[index] = new Vector4(1f / cullingSphere.w, filterSize * 1.4142136f);
     }
 
     void ExecuteBuffer()
@@ -227,7 +299,7 @@ public class Shadows
     /// <param name="light"></param>
     /// <param name="visibleLightIndex"></param>
     /// <returns></returns>
-    public Vector2 ReserveDirectionalShadows(Light light,int visibleLightIndex)
+    public Vector3 ReserveDirectionalShadows(Light light,int visibleLightIndex)
     {
         if(ShadowedDirectionalLightCount < maxShadowedDirectionalLightCount &&
             light.shadows != LightShadows.None && light.shadowStrength > 0f &&
@@ -235,13 +307,15 @@ public class Shadows
         {
             ShadowedDirectionalLights[ShadowedDirectionalLightCount] = new ShadowedDirectionalLight
             {
-                visibleLightIndex = visibleLightIndex
+                visibleLightIndex = visibleLightIndex,
+                slopeScaleBias = light.shadowBias,
+                nearPlaneOffset = light.shadowNearPlane
             };
 
-            return new Vector2(light.shadowStrength, settings.directional.cascadeCount*ShadowedDirectionalLightCount++);
+            return new Vector3(light.shadowStrength, settings.directional.cascadeCount * ShadowedDirectionalLightCount++, light.shadowNormalBias);
         }
 
-        return Vector2.zero;
+        return Vector3.zero;
     }
 
     public void Cleanup()
