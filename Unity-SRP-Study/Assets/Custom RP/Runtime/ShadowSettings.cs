@@ -29,26 +29,50 @@ public class ShadowSettings
     [System.Serializable]
     public struct Directional
     {
+        /// <summary>
+        /// 贴图尺寸
+        /// </summary>
         public MapSize atlasSize;
 
+        /// <summary>
+        /// PCF滤波模式
+        /// </summary>
         public FilterMode filter;
 
+        /// <summary>
+        /// 级联数量
+        /// </summary>
         [Range(1, 4)]
         public int cascadeCount;
 
+        /// <summary>
+        /// 级联比率
+        /// </summary>
         [Range(0f, 1f)]
         public float cascadeRatio1, cascadeRatio2, cascadeRatio3;
 
+        /// <summary>
+        /// 级联比率 向量
+        /// </summary>
         public Vector3 CascadeRatios => new Vector3(cascadeRatio1, cascadeRatio2, cascadeRatio3);
 
+        /// <summary>
+        /// 级联透明度
+        /// </summary>
         [Range(0.001f, 1f)]
         public float cascadeFade;
 
+        /// <summary>
+        /// 级联模式
+        /// </summary>
         public enum CascadeBlendMode
         {
             Hard, Soft, Dither
         }
 
+        /// <summary>
+        /// 级联模式
+        /// </summary>
         public CascadeBlendMode cascadeBlend;
     }
 
